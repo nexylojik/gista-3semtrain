@@ -84,6 +84,9 @@
   .sec-meta .best{color:var(--ok);}
   .sec-meta .best.mid{color:var(--accent-2);}
   .sec-meta .best.low{color:var(--bad);}
+  .sec-num{display:flex; justify-content:space-between; align-items:baseline; gap:6px;}
+  .sec-num .perfect{font-family:'Atkinson Mono', monospace; font-size:.72rem; font-weight:500; color:var(--ok); background:var(--ok-soft); border-radius:999px; padding:1px 7px; white-space:nowrap;}
+  .perfect-line{margin-top:8px; font-size:.9rem; color:var(--ok);}
 
   /* ---- тест ---- */
   .quiz-bar{display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;}
@@ -228,7 +231,9 @@
         <div class="q-meta" id="resultTitle">Результат</div>
         <div class="result-score" id="resultScore"></div>
         <div class="grade" id="resultGrade"></div>
+        <div class="perfect-line" id="perfectLine" hidden></div>
         <div class="actions">
+          <button class="btn primary" id="nextSection" hidden>Следующий раздел →</button>
           <button class="btn primary" id="retryMistakes">Повторить ошибки</button>
           <button class="btn" id="retrySame">Пройти ещё раз</button>
           <button class="btn ghost" id="toMenu">В меню</button>
@@ -256,7 +261,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var LS_MISTAKES = 'gista-digestive-mistakes', LS_BEST = 'gista-digestive-best';
+  var LS_MISTAKES = 'gista-digestive-mistakes', LS_BEST = 'gista-digestive-best', LS_PERFECT = 'gista-digestive-perfect';
   var SCHEME = 'А + + +, Б + + -, В + - -, Г - + -, Д - - -';
   var LETTERS = ['1','2','3','4','5','6'];
 
@@ -276,6 +281,8 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   function save(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch(e){} }
   var mistakes = load(LS_MISTAKES, []).filter(function(id){ return BY_ID[id]; });
   var best = load(LS_BEST, {});
+  var perfect = load(LS_PERFECT, {});
+  function timesWord(n){ var m10 = n % 10, m100 = n % 100; return (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'раза' : 'раз'; }
 
   function shuffle(a){ for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -321,8 +328,10 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
       var bst = best[si + 1];
       var bstHtml = '';
       if(bst != null){ bstHtml = ' · <span class="best' + (bst >= 80 ? '' : bst >= 60 ? ' mid' : ' low') + '">' + bst + '%</span>'; }
-      b.innerHTML = '<span class="sec-num">Раздел ' + (si + 1) + '</span><span class="sec-meta">' + sec.questions.length + ' вопр.' + bstHtml + '</span>';
-      b.addEventListener('click', function(){ start('Раздел ' + (si + 1), sec.questions.slice(), {section: si + 1}); });
+      var pf = perfect[si + 1] || 0;
+      var pfHtml = pf ? '<span class="perfect" title="Сколько раз раздел решён на 100%">✓ ' + pf + '</span>' : '';
+      b.innerHTML = '<span class="sec-num"><span>Раздел ' + (si + 1) + '</span>' + pfHtml + '</span><span class="sec-meta">' + sec.questions.length + ' вопр.' + bstHtml + '</span>';
+      b.addEventListener('click', function(){ startSection(si + 1); });
       box.appendChild(b);
     });
     show('home');
@@ -330,6 +339,8 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
 
   // ---------- Тест ----------
   var S = null; // {title, list, i, score, answered, wrong:[], opts, selected:Set, checked}
+
+  function startSection(n){ start('Раздел ' + n, DATA[n - 1].questions.slice(), {section: n}); }
 
   function start(title, list, opts){
     S = {title: title, list: list, i: 0, score: 0, answered: 0, wrong: [], opts: opts || {}, selected: [], checked: false};
@@ -423,7 +434,18 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   function finish(complete){
     var total = S.answered;
     var p = total ? Math.round(S.score / total * 100) : 0;
-    if(complete && S.opts.section){ best[S.opts.section] = Math.max(best[S.opts.section] || 0, p); save(LS_BEST, best); }
+    var sec = S.opts.section;
+    var fullDone = complete && total === S.list.length;
+    if(fullDone && sec){ best[sec] = Math.max(best[sec] || 0, p); save(LS_BEST, best); }
+    var isPerfect = fullDone && sec && S.score === total;
+    if(isPerfect){ perfect[sec] = (perfect[sec] || 0) + 1; save(LS_PERFECT, perfect); }
+    $('perfectLine').hidden = !isPerfect;
+    if(isPerfect){ $('perfectLine').textContent = '✓ Раздел решён без ошибок — всего ' + perfect[sec] + ' ' + timesWord(perfect[sec]); }
+    var hasNext = !!sec && sec < DATA.length;
+    $('nextSection').hidden = !hasNext;
+    $('nextSection').textContent = hasNext ? ('Следующий раздел (' + (sec + 1) + ') →') : '';
+    $('retrySame').textContent = sec ? 'Решить заново' : 'Пройти ещё раз';
+    $('retryMistakes').classList.toggle('primary', !hasNext);
     $('resultTitle').textContent = (complete ? 'Результат · ' : 'Тест завершён досрочно · ') + S.title;
     $('resultScore').textContent = S.score + ' / ' + total + ' · ' + p + '%';
     var g = grade(p);
@@ -471,6 +493,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   $('nextBtn').addEventListener('click', next);
   $('finishBtn').addEventListener('click', function(){ finish(false); });
   $('toMenu').addEventListener('click', renderHome);
+  $('nextSection').addEventListener('click', function(){ startSection(S.opts.section + 1); });
   $('retrySame').addEventListener('click', function(){
     var list = S.opts.exam ? DATA.map(function(sec){ return sec.questions[Math.floor(Math.random() * sec.questions.length)]; }) : S.list.slice();
     start(S.title, S.opts.section ? list : shuffle(list), S.opts);
