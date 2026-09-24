@@ -154,6 +154,9 @@
 
   /* ---- все вопросы ---- */
   .search{width:100%; font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:10px;}
+  .tools-row{display:flex; gap:8px; align-items:stretch; margin-bottom:10px;}
+  .tools-row .search{margin-bottom:0; flex:1; min-width:0;}
+  .back-btn{flex:none; padding:0 14px; font-size:.88rem; white-space:nowrap;}
   .list-tools{position:sticky; top:var(--hdr, 70px); z-index:9; background:var(--bg); padding:10px 0 8px; margin:-10px 0 14px; border-bottom:1px solid var(--border);}
   .sec-nav{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding:2px 0;}
   .sec-nav::-webkit-scrollbar{display:none;}
@@ -268,10 +271,12 @@
     <section id="screen-list" hidden>
       <div class="quiz-bar">
         <div class="quiz-title">Все вопросы с ответами</div>
-        <button class="btn ghost" id="listBack">В меню</button>
       </div>
       <div class="list-tools" id="listTools">
-        <input class="search" id="search" type="search" placeholder="Поиск по тексту вопроса или ответа…">
+        <div class="tools-row">
+          <button class="btn ghost back-btn" id="listBack" title="Вернуться в меню">← Меню</button>
+          <input class="search" id="search" type="search" placeholder="Поиск по вопросам и ответам">
+        </div>
         <nav class="sec-nav" id="secNav" aria-label="Переход к разделу"></nav>
       </div>
       <div id="list"></div>
