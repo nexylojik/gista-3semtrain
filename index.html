@@ -36,6 +36,11 @@
   .title-row{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
   h1{font-size:1.7rem; margin:0;}
   @media (max-width:600px){ header.top{padding:12px 0 10px;} h1{font-size:1.3rem;} }
+  .h-side{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .xlink{font-size:.82rem; font-weight:600; color:var(--accent); text-decoration:none; border:1px solid var(--border); border-radius:999px; padding:4px 12px; white-space:nowrap; transition:border-color .15s ease, background .15s ease;}
+  .xlink:hover{border-color:var(--accent); background:var(--accent-soft);}
+  .xlink:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  @media (max-width:600px){ .h-side{width:100%; justify-content:space-between;} .xlink{padding:3px 10px; font-size:.78rem;} }
   .h-meta{font-family:'Atkinson Mono', monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);}
   main{padding-top:22px;}
   .intro{color:var(--text-muted); margin:0 0 18px; font-size:.95rem;}
@@ -165,7 +170,8 @@
     .study-start .btn{width:100%;}
     #screen-quiz .quiz-bar{gap:8px; margin-bottom:10px;}
     #screen-quiz .quiz-title{font-size:1.15rem; min-width:0; flex-basis:100%;}
-    #peekBtn, #finishBtn{flex:1; padding:8px 10px; font-size:.85rem;}
+    #peekBtn, #restartBtn, #finishBtn{flex:1; padding:8px 6px; font-size:.82rem;}
+    .wide-only{display:none;}
   }
   .tools-row{display:flex; gap:8px; align-items:stretch; margin-bottom:10px;}
   .tools-row .search{margin-bottom:0; flex:1; min-width:0;}
@@ -207,7 +213,10 @@
   <header class="top">
     <div class="title-row">
       <h1>Тренажёр: пищеварительная система</h1>
-      <span class="h-meta" id="totalMeta"></span>
+      <div class="h-side">
+        <span class="h-meta" id="totalMeta"></span>
+        <a class="xlink" href="https://nexylojik.github.io/gista-3sem/" target="_blank" rel="noopener">ТЭМ и препараты ↗</a>
+      </div>
     </div>
   </header>
 
@@ -244,7 +253,8 @@
       <div class="quiz-sticky">
       <div class="quiz-bar">
         <div class="quiz-title" id="quizTitle"></div>
-        <button class="btn ghost" id="peekBtn" title="Открыть список вопросов этого раздела с ответами">Вопросы раздела</button>
+        <button class="btn ghost" id="peekBtn" title="Открыть список вопросов этого раздела с ответами">Вопросы<span class="wide-only"> раздела</span></button>
+        <button class="btn ghost" id="restartBtn" title="Начать этот тест заново">↻ Заново</button>
         <button class="btn ghost" id="finishBtn">Завершить</button>
       </div>
       <div class="progress">
@@ -627,6 +637,10 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   $('checkBtn').addEventListener('click', check);
   $('nextBtn').addEventListener('click', next);
   $('finishBtn').addEventListener('click', function(){ finish(false); });
+  $('restartBtn').addEventListener('click', function(){
+    if(S.answered && !confirm('Начать тест заново? Текущий прогресс (' + S.answered + ' из ' + S.list.length + ') сбросится.')) return;
+    start(S.title, S.opts.section ? S.list.slice() : shuffle(S.list.slice()), S.opts);
+  });
   $('toMenu').addEventListener('click', renderHome);
   $('nextSection').addEventListener('click', function(){ startSection(S.opts.section + 1); });
   $('retrySame').addEventListener('click', function(){
