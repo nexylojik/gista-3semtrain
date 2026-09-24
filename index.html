@@ -59,7 +59,19 @@
   .btn:disabled{opacity:.45; cursor:not-allowed;}
 
   /* ---- главная ---- */
-  .modes{display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:28px;}
+  .modes{display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-bottom:28px;}
+  .exam-card{grid-column:1 / -1; cursor:default;}
+  .exam-card:hover{transform:none;}
+  .exam-controls{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:10px;}
+  .seg{display:inline-flex; gap:2px; padding:3px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;}
+  .seg button{font:inherit; font-weight:600; font-size:.85rem; padding:7px 12px; border:none; border-radius:7px; background:transparent; color:var(--text-muted); cursor:pointer;}
+  .seg button[aria-checked="true"]{background:var(--surface); color:var(--accent); box-shadow:var(--shadow);}
+  .seg button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  .range{display:inline-flex; gap:10px; align-items:center; font-size:.9rem; color:var(--text-muted);}
+  .range select{font:inherit; font-family:'Atkinson Mono', monospace; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px 8px; margin-left:4px;}
+  .range select:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  #examStart{margin-left:auto;}
+  @media (max-width:640px){ .exam-controls{flex-direction:column; align-items:stretch;} .seg button{flex:1;} .range{justify-content:space-between;} #examStart{margin-left:0;} }
   @media (max-width:640px){ .modes{grid-template-columns:1fr;} }
   .mode{
     text-align:left; font:inherit; color:var(--text); cursor:pointer;
@@ -225,11 +237,22 @@
     <section id="screen-home">
       <p class="intro">Тестовые вопросы по гистологии пищеварительной системы, 30 разделов. Может быть несколько правильных ответов — отметь все и нажми «Проверить».</p>
       <div class="modes">
-        <button class="mode hero" id="modeExam">
+        <div class="mode hero exam-card" id="modeExam">
           <span class="mode-tag">Как на зачёте</span>
           <span class="mode-title">Сформировать тест</span>
-          <span class="mode-sub">30 вопросов — по одному случайному из каждого раздела</span>
-        </button>
+          <span class="mode-sub" id="examSub"></span>
+          <div class="exam-controls">
+            <div class="seg" role="radiogroup" aria-label="Какие разделы">
+              <button type="button" role="radio" data-scope="all" aria-checked="true">Все 30 разделов</button>
+              <button type="button" role="radio" data-scope="range" aria-checked="false">Диапазон</button>
+            </div>
+            <div class="range" id="rangeBox" hidden>
+              <label>с <select id="rFrom"></select></label>
+              <label>по <select id="rTo"></select></label>
+            </div>
+            <button class="btn primary" id="examStart">Начать →</button>
+          </div>
+        </div>
         <button class="mode" id="modeAll">
           <span class="mode-tag">Марафон</span>
           <span class="mode-title">Все вопросы</span>
@@ -300,6 +323,7 @@
           <button class="btn primary" id="nextSection" hidden>Следующий раздел →</button>
           <button class="btn primary" id="retryMistakes">Повторить ошибки</button>
           <button class="btn" id="retrySame">Пройти ещё раз</button>
+          <button class="btn" id="newExam" hidden>Новый тест</button>
           <button class="btn ghost" id="toMenu">В меню</button>
         </div>
         <div class="mistakes" id="mistakes"></div>
@@ -401,7 +425,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
       var bstHtml = '';
       if(bst != null){ bstHtml = ' · <span class="best' + (bst >= 80 ? '' : bst >= 60 ? ' mid' : ' low') + '">' + bst + '%</span>'; }
       var pf = perfect[si + 1] || 0;
-      if(!studied[si + 1]) bstHtml += ' · <span class="new">сначала изучить</span>';
+      if(!studied[si + 1]) bstHtml += ' · <span class="new">не изучен</span>';
       var pfHtml = pf ? '<span class="perfect" title="Сколько раз раздел решён на 100%">✓ ' + pf + '</span>' : '';
       b.innerHTML = '<span class="sec-num"><span>Раздел ' + (si + 1) + '</span>' + pfHtml + '</span><span class="sec-meta">' + sec.questions.length + ' вопр.' + bstHtml + '</span>';
       b.addEventListener('click', function(){ startSection(si + 1); });
@@ -527,7 +551,8 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
     var hasNext = !!sec && sec < DATA.length;
     $('nextSection').hidden = !hasNext;
     $('nextSection').textContent = hasNext ? ('Следующий раздел (' + (sec + 1) + ') →') : '';
-    $('retrySame').textContent = sec ? 'Решить заново' : 'Пройти ещё раз';
+    $('retrySame').textContent = (sec || S.opts.exam) ? 'Решить заново' : 'Пройти ещё раз';
+    $('newExam').hidden = !S.opts.exam;
     $('retryMistakes').classList.toggle('primary', !hasNext);
     $('resultTitle').textContent = (complete ? 'Результат · ' : 'Тест завершён досрочно · ') + S.title;
     $('resultScore').textContent = S.score + ' / ' + total + ' · ' + p + '%';
@@ -625,11 +650,47 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   window.addEventListener('resize', function(){ if(!$('screen-list').hidden){ updateStick(); spy(); } });
   $('toTop').addEventListener('click', function(){ window.scrollTo({top: 0, behavior: 'smooth'}); });
 
-  // ---------- События ----------
-  $('modeExam').addEventListener('click', function(){
-    var list = DATA.map(function(sec){ return sec.questions[Math.floor(Math.random() * sec.questions.length)]; });
-    start('Сформированный тест', list, {exam: true});
+  // ---------- Сформированный тест: все разделы или диапазон ----------
+  var LS_RANGE = 'gista-digestive-range';
+  var examCfg = load(LS_RANGE, {scope: 'all', from: 1, to: DATA.length});
+  (function(){
+    ['rFrom','rTo'].forEach(function(id){
+      $(id).innerHTML = DATA.map(function(s){ return '<option value="' + s.num + '">' + s.num + '</option>'; }).join('');
+    });
+    $('rFrom').value = examCfg.from; $('rTo').value = examCfg.to;
+  })();
+  function syncExamUI(changed){
+    var from = +$('rFrom').value, to = +$('rTo').value;
+    if(from > to){ if(changed === 'from'){ to = from; $('rTo').value = to; } else { from = to; $('rFrom').value = from; } }
+    examCfg = {scope: examCfg.scope, from: from, to: to};
+    save(LS_RANGE, examCfg);
+    document.querySelectorAll('.seg button').forEach(function(b){ b.setAttribute('aria-checked', String(b.dataset.scope === examCfg.scope)); });
+    var isRange = examCfg.scope === 'range';
+    $('rangeBox').hidden = !isRange;
+    var n = isRange ? (to - from + 1) : DATA.length;
+    $('examSub').textContent = isRange
+      ? (n + ' ' + qWord(n) + ' — по одному случайному из разделов ' + from + '–' + to)
+      : '30 вопросов — по одному случайному из каждого раздела';
+  }
+  function qWord(n){ var m10 = n % 10, m100 = n % 100; if(m10 === 1 && m100 !== 11) return 'вопрос'; if(m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'вопроса'; return 'вопросов'; }
+  function makeExam(from, to){
+    return DATA.slice(from - 1, to).map(function(sec){ return sec.questions[Math.floor(Math.random() * sec.questions.length)]; });
+  }
+  function startExam(from, to){
+    var title = (from === 1 && to === DATA.length) ? 'Сформированный тест' : ('Сформированный тест · разделы ' + from + '–' + to);
+    start(title, makeExam(from, to), {exam: true, from: from, to: to});
+  }
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click', function(){ examCfg.scope = b.dataset.scope; syncExamUI(); });
   });
+  $('rFrom').addEventListener('change', function(){ syncExamUI('from'); });
+  $('rTo').addEventListener('change', function(){ syncExamUI('to'); });
+  $('examStart').addEventListener('click', function(){
+    if(examCfg.scope === 'range') startExam(examCfg.from, examCfg.to); else startExam(1, DATA.length);
+  });
+  syncExamUI();
+
+  // ---------- События ----------
   $('modeAll').addEventListener('click', function(){ start('Все вопросы', shuffle(ALL.slice()), {}); });
   $('modeMistakes').addEventListener('click', function(){
     start('Работа над ошибками', shuffle(mistakes.map(function(id){ return BY_ID[id]; })), {mistakes: true});
@@ -646,10 +707,11 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   $('toMenu').addEventListener('click', renderHome);
   $('nextSection').addEventListener('click', function(){ startSection(S.opts.section + 1); });
   $('retrySame').addEventListener('click', function(){
-    // «Сформированный тест» — новый набор, по одному вопросу из каждого раздела по порядку
-    var list = S.opts.exam ? DATA.map(function(sec){ return sec.questions[Math.floor(Math.random() * sec.questions.length)]; }) : S.list.slice();
-    start(S.title, (S.opts.section || S.opts.exam) ? list : shuffle(list), S.opts);
+    // раздел и «Сформированный тест» — те же вопросы в том же порядке; остальные режимы — перемешать
+    var keepOrder = S.opts.section || S.opts.exam;
+    start(S.title, keepOrder ? S.list.slice() : shuffle(S.list.slice()), S.opts);
   });
+  $('newExam').addEventListener('click', function(){ startExam(S.opts.from || 1, S.opts.to || DATA.length); });
   $('retryMistakes').addEventListener('click', function(){ start('Ошибки: ' + S.title, S.wrong.slice(), {mistakes: true}); });
   $('openList').addEventListener('click', function(){ $('search').value = ''; setListBack(false); show('list'); activeSec = null; renderList(''); });
   // «← Меню» в списке: если список открыт из теста — возвращает в тест
