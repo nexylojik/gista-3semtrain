@@ -85,6 +85,7 @@
   .sec-meta .best{color:var(--ok);}
   .sec-meta .best.mid{color:var(--accent-2);}
   .sec-meta .best.low{color:var(--bad);}
+  .sec-meta .new{color:var(--accent);}
   .sec-num{display:flex; justify-content:space-between; align-items:baseline; gap:6px;}
   .sec-num .perfect{font-family:'Atkinson Mono', monospace; font-size:.72rem; font-weight:500; color:var(--ok); background:var(--ok-soft); border-radius:999px; padding:1px 7px; white-space:nowrap;}
   .perfect-line{margin-top:8px; font-size:.9rem; color:var(--ok);}
@@ -154,6 +155,18 @@
 
   /* ---- все вопросы ---- */
   .search{width:100%; font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:10px;}
+  .quiz-sticky{position:sticky; top:var(--hdr, 70px); z-index:9; background:var(--bg); padding-top:10px; margin-top:-10px;}
+  .quiz-sticky .progress{margin-bottom:0; padding-bottom:12px;}
+  #screen-quiz .card{margin-top:6px;}
+  .study-hint{font-size:.9rem; color:var(--text-muted); background:var(--accent-soft); border-left:3px solid var(--accent); border-radius:0 10px 10px 0; padding:10px 14px; margin-bottom:18px;}
+  .study-start{position:sticky; bottom:0; padding:14px 0 18px; background:linear-gradient(transparent, var(--bg) 35%); display:flex; justify-content:center;}
+  .study-start .btn{padding:12px 22px; font-size:1rem; box-shadow:var(--shadow);}
+  @media (max-width:600px){
+    .study-start .btn{width:100%;}
+    #screen-quiz .quiz-bar{gap:8px; margin-bottom:10px;}
+    #screen-quiz .quiz-title{font-size:1.15rem; min-width:0; flex-basis:100%;}
+    #peekBtn, #finishBtn{flex:1; padding:8px 10px; font-size:.85rem;}
+  }
   .tools-row{display:flex; gap:8px; align-items:stretch; margin-bottom:10px;}
   .tools-row .search{margin-bottom:0; flex:1; min-width:0;}
   .back-btn{flex:none; padding:0 14px; font-size:.88rem; white-space:nowrap;}
@@ -228,14 +241,17 @@
 
     <!-- ============ ТЕСТ ============ -->
     <section id="screen-quiz" hidden>
+      <div class="quiz-sticky">
       <div class="quiz-bar">
         <div class="quiz-title" id="quizTitle"></div>
+        <button class="btn ghost" id="peekBtn" title="Открыть список вопросов этого раздела с ответами">Вопросы раздела</button>
         <button class="btn ghost" id="finishBtn">Завершить</button>
       </div>
       <div class="progress">
         <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
         <span class="score-live" id="scoreLive"></span>
         <span class="progress-text" id="progressText"></span>
+      </div>
       </div>
       <div class="card">
         <div class="q-meta" id="qMeta"></div>
@@ -251,6 +267,19 @@
     </section>
 
     <!-- ============ РЕЗУЛЬТАТ ============ -->
+    <!-- ============ ИЗУЧЕНИЕ РАЗДЕЛА ============ -->
+    <section id="screen-study" hidden>
+      <div class="quiz-bar">
+        <div class="quiz-title" id="studyTitle"></div>
+        <button class="btn ghost" id="studyBack">← Меню</button>
+      </div>
+      <div class="study-hint">Первый заход в раздел: сначала прочитай вопросы с правильными ответами, потом переходи к тесту. В следующий раз тест откроется сразу.</div>
+      <div id="studyList"></div>
+      <div class="study-start">
+        <button class="btn primary" id="studyStart">Я изучил — начать тест →</button>
+      </div>
+    </section>
+
     <section id="screen-result" hidden>
       <div class="card">
         <div class="q-meta" id="resultTitle">Результат</div>
@@ -292,7 +321,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
 (function(){
   "use strict";
   var $ = function(id){ return document.getElementById(id); };
-  var LS_MISTAKES = 'gista-digestive-mistakes', LS_BEST = 'gista-digestive-best', LS_PERFECT = 'gista-digestive-perfect';
+  var LS_MISTAKES = 'gista-digestive-mistakes', LS_BEST = 'gista-digestive-best', LS_PERFECT = 'gista-digestive-perfect', LS_STUDIED = 'gista-digestive-studied';
   var SCHEME = 'А + + +, Б + + -, В + - -, Г - + -, Д - - -';
   var LETTERS = ['1','2','3','4','5','6'];
 
@@ -313,6 +342,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   var mistakes = load(LS_MISTAKES, []).filter(function(id){ return BY_ID[id]; });
   var best = load(LS_BEST, {});
   var perfect = load(LS_PERFECT, {});
+  var studied = load(LS_STUDIED, {});
   function timesWord(n){ var m10 = n % 10, m100 = n % 100; return (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'раза' : 'раз'; }
 
   function shuffle(a){ for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
@@ -342,7 +372,8 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   var GRADE_TEXT = {5:'Оценка 5 — отлично', 4:'Оценка 4 — хорошо', 3:'Оценка 3 — удовлетворительно', 2:'Оценка 2 — надо повторить'};
 
   function show(name){
-    ['home','quiz','result','list'].forEach(function(n){ $('screen-' + n).hidden = (n !== name); });
+    ['home','quiz','result','list','study'].forEach(function(n){ $('screen-' + n).hidden = (n !== name); });
+    document.documentElement.style.setProperty('--hdr', document.querySelector('header.top').offsetHeight + 'px');
     window.scrollTo(0, 0);
   }
 
@@ -360,6 +391,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
       var bstHtml = '';
       if(bst != null){ bstHtml = ' · <span class="best' + (bst >= 80 ? '' : bst >= 60 ? ' mid' : ' low') + '">' + bst + '%</span>'; }
       var pf = perfect[si + 1] || 0;
+      if(!studied[si + 1]) bstHtml += ' · <span class="new">сначала изучить</span>';
       var pfHtml = pf ? '<span class="perfect" title="Сколько раз раздел решён на 100%">✓ ' + pf + '</span>' : '';
       b.innerHTML = '<span class="sec-num"><span>Раздел ' + (si + 1) + '</span>' + pfHtml + '</span><span class="sec-meta">' + sec.questions.length + ' вопр.' + bstHtml + '</span>';
       b.addEventListener('click', function(){ startSection(si + 1); });
@@ -371,7 +403,17 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   // ---------- Тест ----------
   var S = null; // {title, list, i, score, answered, wrong:[], opts, selected:Set, checked}
 
-  function startSection(n){ start('Раздел ' + n, DATA[n - 1].questions.slice(), {section: n}); }
+  function startSection(n){
+    if(!studied[n]){ openStudy(n); return; }
+    start('Раздел ' + n, DATA[n - 1].questions.slice(), {section: n});
+  }
+  var studySec = null;
+  function openStudy(n){
+    studySec = n;
+    $('studyTitle').textContent = 'Раздел ' + n + ' · изучение';
+    $('studyList').innerHTML = DATA[n - 1].questions.map(listItemHtml).join('');
+    show('study');
+  }
 
   function start(title, list, opts){
     S = {title: title, list: list, i: 0, score: 0, answered: 0, wrong: [], opts: opts || {}, selected: [], checked: false};
@@ -446,12 +488,12 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
     $('checkBtn').hidden = true;
     $('nextBtn').hidden = false;
     $('nextBtn').textContent = S.i === S.list.length - 1 ? 'Результат →' : 'Дальше →';
-    $('nextBtn').focus();
+    $('nextBtn').focus({preventScroll: true});
     updateProgress();
   }
 
   function next(){
-    if(S.i < S.list.length - 1){ S.i++; renderQ(); }
+    if(S.i < S.list.length - 1){ S.i++; renderQ(); window.scrollTo(0, 0); }
     else finish(true);
   }
 
@@ -493,6 +535,12 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   }
 
   // ---------- Список ----------
+  function listItemHtml(q){
+    return '<div class="list-q"><div class="q-meta">' + q.id + '</div>' + qHtml(q) + '<ol>' +
+      q.answers.map(function(a, k){ return '<li' + (q.correct.indexOf(k) >= 0 ? ' class="right"' : '') + '>' + esc(a) + '</li>'; }).join('') +
+      '</ol>' + (q.note ? '<div class="note">' + noteHtml(q) + '</div>' : '') + '</div>';
+  }
+
   function renderList(filter){
     var f = (filter || '').trim().toLowerCase();
     var html = '', found = {};
@@ -503,11 +551,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
       found[sec.num] = items.length > 0;
       if(!items.length) return;
       html += '<div class="qgroup" id="sec-' + sec.num + '" data-sec="' + sec.num + '"><h2>Раздел ' + sec.num + ' <span class="h-meta">' + items.length + ' вопр.</span></h2>' +
-        items.map(function(q){
-          return '<div class="list-q"><div class="q-meta">' + q.id + '</div>' + qHtml(q) + '<ol>' +
-            q.answers.map(function(a, k){ return '<li' + (q.correct.indexOf(k) >= 0 ? ' class="right"' : '') + '>' + esc(a) + '</li>'; }).join('') +
-            '</ol>' + (q.note ? '<div class="note">' + noteHtml(q) + '</div>' : '') + '</div>';
-        }).join('') + '</div>';
+        items.map(listItemHtml).join('') + '</div>';
     });
     $('list').innerHTML = html || '<div class="empty">Ничего не найдено</div>';
     $('secNav').querySelectorAll('.sec-chip').forEach(function(c){ c.disabled = !found[c.dataset.sec]; });
@@ -590,8 +634,28 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
     start(S.title, S.opts.section ? list : shuffle(list), S.opts);
   });
   $('retryMistakes').addEventListener('click', function(){ start('Ошибки: ' + S.title, S.wrong.slice(), {mistakes: true}); });
-  $('openList').addEventListener('click', function(){ $('search').value = ''; show('list'); activeSec = null; renderList(''); });
-  $('listBack').addEventListener('click', renderHome);
+  $('openList').addEventListener('click', function(){ $('search').value = ''; setListBack(false); show('list'); activeSec = null; renderList(''); });
+  // «← Меню» в списке: если список открыт из теста — возвращает в тест
+  var listFromQuiz = false;
+  function setListBack(fromQuiz){
+    listFromQuiz = fromQuiz;
+    $('listBack').textContent = fromQuiz ? '← К тесту' : '← Меню';
+    $('listBack').title = fromQuiz ? 'Вернуться к текущему вопросу' : 'Вернуться в меню';
+  }
+  $('listBack').addEventListener('click', function(){
+    if(listFromQuiz){ setListBack(false); show('quiz'); } else renderHome();
+  });
+  $('peekBtn').addEventListener('click', function(){
+    var sec = S.list[S.i].sec;
+    $('search').value = ''; setListBack(true); show('list'); activeSec = null; renderList('');
+    var g = $('sec-' + sec);
+    if(g){ g.scrollIntoView({block: 'start'}); setActive(sec); }
+  });
+  $('studyBack').addEventListener('click', renderHome);
+  $('studyStart').addEventListener('click', function(){
+    studied[studySec] = true; save(LS_STUDIED, studied);
+    startSection(studySec);
+  });
   $('search').addEventListener('input', function(e){ renderList(e.target.value); });
 
   document.addEventListener('keydown', function(e){
