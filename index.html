@@ -35,6 +35,7 @@
   header.top{position:sticky; top:0; z-index:10; background:var(--bg); padding:18px 0 14px; border-bottom:1px solid var(--border);}
   .title-row{display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;}
   h1{font-size:1.7rem; margin:0;}
+  @media (max-width:600px){ header.top{padding:12px 0 10px;} h1{font-size:1.3rem;} }
   .h-meta{font-family:'Atkinson Mono', monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);}
   main{padding-top:22px;}
   .intro{color:var(--text-muted); margin:0 0 18px; font-size:.95rem;}
@@ -152,7 +153,28 @@
   .mistake-a b{color:var(--ok); font-weight:600;}
 
   /* ---- все вопросы ---- */
-  .search{width:100%; font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:18px;}
+  .search{width:100%; font:inherit; color:var(--text); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:10px;}
+  .list-tools{position:sticky; top:var(--hdr, 70px); z-index:9; background:var(--bg); padding:10px 0 8px; margin:-10px 0 14px; border-bottom:1px solid var(--border);}
+  .sec-nav{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding:2px 0;}
+  .sec-nav::-webkit-scrollbar{display:none;}
+  @media (min-width:700px){ .sec-nav{flex-wrap:wrap; overflow:visible;} }
+  .sec-chip{
+    flex:none; min-width:38px; height:36px; padding:0 8px; border-radius:9px; cursor:pointer;
+    font:inherit; font-family:'Atkinson Mono', monospace; font-size:.85rem; color:var(--text-muted);
+    background:var(--surface); border:1px solid var(--border); transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .sec-chip:hover:not(:disabled){border-color:var(--accent); color:var(--text);}
+  .sec-chip:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  .sec-chip.active{background:var(--accent); border-color:var(--accent); color:#1A1216;}
+  .sec-chip:disabled{opacity:.3; cursor:default;}
+  #list .qgroup{scroll-margin-top:var(--stick, 180px);}
+  .to-top{
+    position:fixed; right:16px; bottom:20px; z-index:20; width:44px; height:44px; border-radius:50%;
+    border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:1.1rem; cursor:pointer;
+    box-shadow:var(--shadow); opacity:0; transform:translateY(8px); pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+  }
+  .to-top.show{opacity:1; transform:none; pointer-events:auto;}
+  .to-top:hover{border-color:var(--accent);}
   .search:focus{outline:2px solid var(--accent); outline-offset:1px;}
   .list-q{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:8px;}
   .list-q .q-meta{margin-bottom:4px;}
@@ -248,8 +270,12 @@
         <div class="quiz-title">Все вопросы с ответами</div>
         <button class="btn ghost" id="listBack">В меню</button>
       </div>
-      <input class="search" id="search" type="search" placeholder="Поиск по тексту вопроса или ответа…">
+      <div class="list-tools" id="listTools">
+        <input class="search" id="search" type="search" placeholder="Поиск по тексту вопроса или ответа…">
+        <nav class="sec-nav" id="secNav" aria-label="Переход к разделу"></nav>
+      </div>
       <div id="list"></div>
+      <button class="to-top" id="toTop" aria-label="Наверх" title="Наверх">↑</button>
     </section>
   </main>
 </div>
@@ -464,13 +490,14 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   // ---------- Список ----------
   function renderList(filter){
     var f = (filter || '').trim().toLowerCase();
-    var html = '';
+    var html = '', found = {};
     DATA.forEach(function(sec){
       var items = sec.questions.filter(function(q){
         return !f || q.q.toLowerCase().indexOf(f) >= 0 || q.answers.some(function(a){ return a.toLowerCase().indexOf(f) >= 0; });
       });
+      found[sec.num] = items.length > 0;
       if(!items.length) return;
-      html += '<div class="qgroup"><h2>Раздел ' + sec.num + ' <span class="h-meta">' + items.length + ' вопр.</span></h2>' +
+      html += '<div class="qgroup" id="sec-' + sec.num + '" data-sec="' + sec.num + '"><h2>Раздел ' + sec.num + ' <span class="h-meta">' + items.length + ' вопр.</span></h2>' +
         items.map(function(q){
           return '<div class="list-q"><div class="q-meta">' + q.id + '</div>' + qHtml(q) + '<ol>' +
             q.answers.map(function(a, k){ return '<li' + (q.correct.indexOf(k) >= 0 ? ' class="right"' : '') + '>' + esc(a) + '</li>'; }).join('') +
@@ -478,7 +505,66 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
         }).join('') + '</div>';
     });
     $('list').innerHTML = html || '<div class="empty">Ничего не найдено</div>';
+    $('secNav').querySelectorAll('.sec-chip').forEach(function(c){ c.disabled = !found[c.dataset.sec]; });
+    updateStick(); spy();
   }
+
+  // ---------- Навигация по разделам в списке ----------
+  (function(){
+    var nav = $('secNav');
+    DATA.forEach(function(sec){
+      var c = document.createElement('button');
+      c.type = 'button'; c.className = 'sec-chip'; c.dataset.sec = sec.num; c.textContent = sec.num;
+      c.title = 'Раздел ' + sec.num;
+      c.addEventListener('click', function(){
+        var g = $('sec-' + sec.num);
+        if(g){ g.scrollIntoView({behavior: 'smooth', block: 'start'}); setActive(sec.num); }
+      });
+      nav.appendChild(c);
+    });
+  })();
+
+  function updateStick(){
+    var hdr = document.querySelector('header.top').offsetHeight;
+    document.documentElement.style.setProperty('--hdr', hdr + 'px');
+    document.documentElement.style.setProperty('--stick', (hdr + $('listTools').offsetHeight + 10) + 'px');
+  }
+
+  var activeSec = null;
+  function setActive(n){
+    if(activeSec === n) return;
+    activeSec = n;
+    var nav = $('secNav'), chip = null;
+    nav.querySelectorAll('.sec-chip').forEach(function(c){
+      var on = String(c.dataset.sec) === String(n);
+      c.classList.toggle('active', on);
+      if(on) chip = c;
+    });
+    if(chip && nav.scrollWidth > nav.clientWidth){
+      var target = chip.offsetLeft - (nav.clientWidth - chip.offsetWidth) / 2;
+      nav.scrollTo({left: Math.max(0, target), behavior: 'smooth'});
+    }
+  }
+
+  function spy(){
+    if($('screen-list').hidden) return;
+    var line = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stick')) || 180;
+    var groups = $('list').querySelectorAll('.qgroup'), cur = null;
+    for(var i = 0; i < groups.length; i++){
+      if(groups[i].getBoundingClientRect().top - line <= 12) cur = groups[i].dataset.sec; else break;
+    }
+    if(!cur && groups.length) cur = groups[0].dataset.sec;
+    setActive(cur);
+    $('toTop').classList.toggle('show', window.scrollY > 500);
+  }
+
+  var spyQueued = false;
+  window.addEventListener('scroll', function(){
+    if(spyQueued) return; spyQueued = true;
+    requestAnimationFrame(function(){ spyQueued = false; spy(); });
+  }, {passive: true});
+  window.addEventListener('resize', function(){ if(!$('screen-list').hidden){ updateStick(); spy(); } });
+  $('toTop').addEventListener('click', function(){ window.scrollTo({top: 0, behavior: 'smooth'}); });
 
   // ---------- События ----------
   $('modeExam').addEventListener('click', function(){
@@ -499,7 +585,7 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
     start(S.title, S.opts.section ? list : shuffle(list), S.opts);
   });
   $('retryMistakes').addEventListener('click', function(){ start('Ошибки: ' + S.title, S.wrong.slice(), {mistakes: true}); });
-  $('openList').addEventListener('click', function(){ renderList(''); $('search').value = ''; show('list'); });
+  $('openList').addEventListener('click', function(){ $('search').value = ''; show('list'); activeSec = null; renderList(''); });
   $('listBack').addEventListener('click', renderHome);
   $('search').addEventListener('input', function(e){ renderList(e.target.value); });
 
