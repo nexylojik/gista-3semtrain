@@ -639,13 +639,16 @@ const DATA = [{"title": "ВОПРОС №1", "questions": [{"q": "В слизи�
   $('finishBtn').addEventListener('click', function(){ finish(false); });
   $('restartBtn').addEventListener('click', function(){
     if(S.answered && !confirm('Начать тест заново? Текущий прогресс (' + S.answered + ' из ' + S.list.length + ') сбросится.')) return;
-    start(S.title, S.opts.section ? S.list.slice() : shuffle(S.list.slice()), S.opts);
+    // раздел и «Сформированный тест» — те же вопросы в том же порядке (по разделам 1→30); остальные режимы — перемешать
+    var keepOrder = S.opts.section || S.opts.exam;
+    start(S.title, keepOrder ? S.list.slice() : shuffle(S.list.slice()), S.opts);
   });
   $('toMenu').addEventListener('click', renderHome);
   $('nextSection').addEventListener('click', function(){ startSection(S.opts.section + 1); });
   $('retrySame').addEventListener('click', function(){
+    // «Сформированный тест» — новый набор, по одному вопросу из каждого раздела по порядку
     var list = S.opts.exam ? DATA.map(function(sec){ return sec.questions[Math.floor(Math.random() * sec.questions.length)]; }) : S.list.slice();
-    start(S.title, S.opts.section ? list : shuffle(list), S.opts);
+    start(S.title, (S.opts.section || S.opts.exam) ? list : shuffle(list), S.opts);
   });
   $('retryMistakes').addEventListener('click', function(){ start('Ошибки: ' + S.title, S.wrong.slice(), {mistakes: true}); });
   $('openList').addEventListener('click', function(){ $('search').value = ''; setListBack(false); show('list'); activeSec = null; renderList(''); });
